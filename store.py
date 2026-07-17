@@ -39,7 +39,12 @@ class ProviderStore:
         return None
 
     def create(self, provider_create: ProviderCreate) -> Provider:
-        provider = Provider(label=provider_create.label, api_key=provider_create.api_key)
+        provider = Provider(
+            label=provider_create.label,
+            api_key=provider_create.api_key,
+            base_url=provider_create.base_url,
+            model=provider_create.model,
+        )
         self._providers.append(provider)
         self._save()
         return provider
@@ -52,6 +57,10 @@ class ProviderStore:
             provider.label = updates["label"]
         if "api_key" in updates:
             provider.api_key = updates["api_key"]
+        if "base_url" in updates:
+            provider.base_url = updates["base_url"]
+        if "model" in updates:
+            provider.model = updates["model"]
         self._save()
         return provider
 

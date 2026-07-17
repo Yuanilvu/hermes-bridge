@@ -1,0 +1,16 @@
+[Unit]
+Description=Hermes Bridge — Local LLM proxy
+After=network.target
+
+[Service]
+Type=simple
+User=yuan
+WorkingDirectory=/home/yuan/hermes-bridge
+Environment=PATH=/home/yuan/hermes-bridge/.venv/bin:/usr/local/bin:/usr/bin
+EnvironmentFile=/home/yuan/hermes-bridge/.env
+ExecStart=/home/yuan/hermes-bridge/.venv/bin/uvicorn server:app --host 127.0.0.1 --port 8199
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

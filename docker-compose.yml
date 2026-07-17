@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  bridge:
+    build: .
+    container_name: hermes-bridge
+    ports:
+      - "8199:8199"
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    environment:
+      - BRIDGE_HOST=0.0.0.0
+      - BRIDGE_PORT=8199
+    restart: unless-stopped

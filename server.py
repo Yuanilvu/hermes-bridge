@@ -5,10 +5,22 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from rate_limit import limiter
 
 from auth import verify_api_key
 from config_loader import config
-from routers import health as health_router, providers as providers_router
+from logging_config import configure_logging
+from routers import (
+    health as health_router,
+    providers as providers_router,
+    proxy as proxy_router,
+    vault as vault_router,
+)
+
+# Structured logging init (before app creation)
+configure_logging(log_level="INFO", json_output=False)
 
 # Create data directory
 DATA_DIR = Path(__file__).parent / "data"
@@ -31,9 +43,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting — shared limiter from rate_limit.py
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Mount routers
 app.include_router(health_router.router)
 app.include_router(providers_router.router)
+app.include_router(proxy_router.router)
+app.include_router(vault_router.router)
 
 
 @app.get("/")

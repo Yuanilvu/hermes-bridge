@@ -83,9 +83,9 @@ class _Hub:
         return providers
 
 
+config = _Hub()
+
+
 def load_providers() -> List[ProviderCreate]:
     """Module-level helper — delegates to config.load_providers()."""
     return config.load_providers()
-
-
-config = _Hub()
