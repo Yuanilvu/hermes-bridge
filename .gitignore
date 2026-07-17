@@ -1,0 +1,43 @@
+# Environment
+.env
+.env.*
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime
+*.pid
+*.lock
+
+# Config with secrets
+config/providers.txt
+config/*.toml
+
+# Test
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Allow example configs
+!config/settings.example.toml
+!config/providers.example.txt
+

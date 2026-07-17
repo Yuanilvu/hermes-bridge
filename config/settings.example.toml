@@ -1,0 +1,27 @@
+# Hermes Bridge Configuration
+# Bisa di-override via environment variables
+
+[bridge]
+host = "127.0.0.1"
+port = 8199
+
+[bridge.auth]
+# API key untuk autentikasi Hermes → Bridge
+# Override via env: BRIDGE_API_KEY
+api_key = "hermes-local-2026"
+
+[9router]
+# URL 9router instance
+# Override via env: NINE_ROUTER_URL
+url = "http://localhost:20128"
+health_endpoint = "/api/providers"
+
+[github]
+# Repository info
+owner = "Yuanilvu"
+repo = "hermes-bridge"
+
+[vault]
+# Obsidian vault path
+# Override via env: VAULT_PATH
+path = "~/hermes-workspace"

@@ -1,0 +1,8 @@
+# API Keys untuk 9router
+# Format: label,api_key
+# Satu baris per provider
+# (isi dengan key Google AI Studio / OpenRouter kamu)
+
+# Contoh:
+# google_ai_1,AIzaSyYourActualKeyHere
+# openrouter_1,sk-or-v1-your-actual-key
