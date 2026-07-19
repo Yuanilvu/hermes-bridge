@@ -1,5 +1,5 @@
 """
-Vault router — Hermes Bridge v0.2.0
+Vault router — Hermes Bridge v0.2.1
 Provider store + actual vault filesystem search.
 """
 import subprocess
@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from auth import verify_api_key
 from config_loader import config
 from store import get_store, ProviderStore
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -36,7 +37,7 @@ async def vault_info():
     return {
         "provider_count": len(providers),
         "providers": [{"id": p.id, "label": p.label, "model": p.model} for p in providers],
-        "bridge_version": "0.2.0",
+        "bridge_version": "0.2.1",
     }
 
 
@@ -60,7 +61,7 @@ async def vault_provider_detail(provider_id: str):
 
 @router.get("/vault/files/search")
 async def vault_search(
-    q: str = Query(..., description="Search query (regex or plain text)"),
+    q: str = Query(..., description="Search query (regex or plain text)", min_length=1),
     path: str = Query("notes", description="Subdirectory under vault to search (e.g. notes, notes/daily)"),
     max_results: int = Query(20, ge=1, le=100),
 ):
@@ -159,6 +160,14 @@ class VaultWriteRequest(BaseModel):
     file: str  # path relative to vault root
     content: str  # full file content (overwrites existing)
     create_dirs: bool = True  # auto-create parent directories
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, v):
+        max_bytes = 1024 * 1024  # 1 MB
+        if len(v.encode("utf-8")) > max_bytes:
+            raise ValueError(f"Content too large (max {max_bytes // 1024} KB)")
+        return v
 
 
 @router.post("/vault/files/write")

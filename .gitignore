@@ -1,7 +1,8 @@
-# Environment
+# Environment — exclude actual .env but keep example
 .env
-.env.*
-*.env
+.env.local
+.env.production
+!.env.example
 
 # Python
 __pycache__/
@@ -28,16 +29,10 @@ Thumbs.db
 *.pid
 *.lock
 
-# Config with secrets
+# Config with secrets (general deny)
 config/providers.txt
 config/*.toml
-
-# Test
-.coverage
-htmlcov/
-.pytest_cache/
 
 # Allow example configs
 !config/settings.example.toml
 !config/providers.example.txt
-

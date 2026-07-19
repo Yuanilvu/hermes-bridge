@@ -1,5 +1,5 @@
 """
-HTTP Proxy router — Hermes Bridge v0.2.0
+HTTP Proxy router -- Hermes Bridge v0.2.1
 Proxy HTTP requests to allowed external services.
 """
 import base64

@@ -1,27 +1,24 @@
-# Hermes Bridge Configuration
-# Bisa di-override via environment variables
+# ─── Hermes Bridge — environment overrides ───
+# Settings here override .env defaults.
+# Create this file if you need non-default values.
 
 [bridge]
 host = "127.0.0.1"
 port = 8199
-
-[bridge.auth]
-# API key untuk autentikasi Hermes → Bridge
-# Override via env: BRIDGE_API_KEY
 api_key = "hermes-local-2026"
 
-[9router]
-# URL 9router instance
-# Override via env: NINE_ROUTER_URL
+[nine_router]
 url = "http://localhost:20128"
-health_endpoint = "/api/providers"
 
 [github]
-# Repository info
 owner = "Yuanilvu"
 repo = "hermes-bridge"
 
 [vault]
-# Obsidian vault path
-# Override via env: VAULT_PATH
-path = "~/hermes-workspace"
+path = "/home/yuan/hermes-workspace"
+
+[limits]
+# Max request body size in bytes (default: 10MB)
+max_body_bytes = 10_485_760
+# Max vault file write size in bytes (default: 1MB)
+max_vault_write_bytes = 1_048_576

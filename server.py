@@ -3,8 +3,9 @@ import sys
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from rate_limit import limiter
@@ -28,7 +29,7 @@ configure_logging(log_level="INFO", json_output=False)
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 app = FastAPI(
     title="Hermes Bridge",
@@ -50,6 +51,21 @@ app.add_middleware(
 # Rate limiting — shared limiter from rate_limit.py
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── Global request body size limit (DoS protection) ──
+MAX_BODY_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_BODY_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={"detail": f"Request body too large (max {MAX_BODY_BYTES // 1024 // 1024} MB)"},
+        )
+    return await call_next(request)
+
 
 # Mount routers
 app.include_router(health_router.router)
@@ -86,11 +102,15 @@ async def api_root():
             "vault/search": "/api/vault/files/search?q=...",
             "vault/structure": "/api/vault/files/structure",
             "vault/read": "/api/vault/files/read?file=...",
+            "vault/write": "POST /api/vault/files/write",
             "desktop/status": "/api/desktop/status",
             "desktop/screenshot": "/api/desktop/screenshot",
             "desktop/click": "POST /api/desktop/click",
             "desktop/type": "POST /api/desktop/type",
             "desktop/key": "POST /api/desktop/key",
+            "desktop/key-down": "POST /api/desktop/key-down",
+            "desktop/key-up": "POST /api/desktop/key-up",
+            "desktop/mouse-move-relative": "POST /api/desktop/mouse-move-relative",
             "desktop/cursor": "/api/desktop/cursor",
             "proxy/http": "/api/proxy/http?url=...",
         },

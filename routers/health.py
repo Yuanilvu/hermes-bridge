@@ -19,7 +19,7 @@ async def health_check():
     return {
         "status": "ok",
         "timestamp": datetime.now().isoformat(),
-        "bridge_version": "0.2.0",
+        "bridge_version": "0.2.1",
         "uptime_seconds": round(time.time() - _start_time, 2),
     }
 

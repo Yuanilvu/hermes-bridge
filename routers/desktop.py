@@ -1,8 +1,8 @@
 """
-Desktop control router — Hermes Bridge v0.2.0
+Desktop control router -- Hermes Bridge v0.2.1
 Tangan & mata untuk Wayland via cua-driver CLI.
 
-Menyediakan ~25 endpoint untuk kontrol desktop penuh:
+Menyediakan ~30 endpoint untuk kontrol desktop penuh:
 mouse, keyboard, scroll, drag, apps, accessibility, screenshot.
 """
 import json
@@ -67,7 +67,7 @@ def _get_desktop_pid() -> int:
                 return w["pid"]
     except Exception:
         pass
-    # Fallback: try xdotool getactivewindow → getwindowpid
+    # Fallback: try xdotool getactivewindow -> getwindowpid
     try:
         wid = subprocess.run(
             ["xdotool", "getactivewindow"],
@@ -82,7 +82,8 @@ def _get_desktop_pid() -> int:
                 return int(pid.stdout.strip())
     except Exception:
         pass
-    return 5540
+    # Ultimate fallback: env var or hardcoded default
+    return int(os.getenv("HERMES_DESKTOP_PID", "5540"))
 
 
 def _get_guard_window_id() -> int:
@@ -97,7 +98,7 @@ def _get_guard_window_id() -> int:
                 return w["window_id"]
     except Exception:
         pass
-    return 4194314
+    return int(os.getenv("HERMES_GUARD_WINDOW_ID", "4194314"))
 
 
 def _desktop_context() -> dict:
