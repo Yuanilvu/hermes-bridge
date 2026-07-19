@@ -1,9 +1,11 @@
 """
-Vault info endpoint — provides metadata about Hermes bridge state.
+Vault router — Hermes Bridge v0.2.0
+Provider store + actual vault filesystem search.
 """
+import subprocess
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from auth import verify_api_key
 from config_loader import config
@@ -22,15 +24,18 @@ def _get_store() -> ProviderStore:
     return get_store(DATA_DIR)
 
 
+# ── Existing: provider store endpoints ──────────────────────────────
+
+
 @router.get("/vault")
 async def vault_info():
-    """Return metadata about the Hermes bridge vault."""
+    """Return metadata about the Hermes bridge vault (provider store)."""
     store = _get_store()
     providers = store.get_all()
     return {
         "provider_count": len(providers),
         "providers": [{"id": p.id, "label": p.label, "model": p.model} for p in providers],
-        "bridge_version": "0.1.0",
+        "bridge_version": "0.2.0",
     }
 
 
@@ -46,4 +51,104 @@ async def vault_provider_detail(provider_id: str):
         "label": provider.label,
         "base_url": provider.base_url,
         "model": provider.model,
+    }
+
+
+# ── New: vault filesystem search ────────────────────────────────────
+
+
+@router.get("/vault/files/search")
+async def vault_search(
+    q: str = Query(..., description="Search query (regex or plain text)"),
+    path: str = Query("notes", description="Subdirectory under vault to search (e.g. notes, notes/daily)"),
+    max_results: int = Query(20, ge=1, le=100),
+):
+    """Search files in the Obsidian vault by content.
+
+    Uses ripgrep (rg) for fast recursive search.
+    """
+    vault_root = Path(config.vault.path).expanduser().resolve()
+    search_dir = vault_root / path
+
+    if not search_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Path '{path}' not found in vault")
+
+    try:
+        result = subprocess.run(
+            ["rg", "-l", "--smart-case", "--max-count", "5", q, str(search_dir)],
+            capture_output=True, text=True, timeout=30,
+        )
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="ripgrep (rg) not found")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Search timed out")
+
+    files = [f for f in result.stdout.strip().split("\n") if f.strip()]
+    # Show relative paths
+    files_rel = [str(Path(f).relative_to(vault_root)) for f in files[:max_results]]
+
+    return {
+        "query": q,
+        "path": path,
+        "total": len(files),
+        "results": files_rel,
+    }
+
+
+@router.get("/vault/files/structure")
+async def vault_structure():
+    """List vault directory structure (top-level folders and file counts)."""
+    vault_root = Path(config.vault.path).expanduser().resolve()
+    if not vault_root.exists():
+        raise HTTPException(status_code=404, detail="Vault path not found")
+
+    structure = {}
+    for child in sorted(vault_root.iterdir()):
+        if child.is_dir() and not child.name.startswith("."):
+            md_count = len(list(child.glob("*.md")))
+            structure[child.name] = {"files": md_count, "path": str(child.relative_to(vault_root))}
+
+    return {
+        "vault_root": str(vault_root),
+        "structure": structure,
+        "total_dirs": len(structure),
+    }
+
+
+@router.get("/vault/files/read")
+async def vault_read(
+    file: str = Query(..., description="File path relative to vault root"),
+    offset: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Read a vault file with line numbers and pagination."""
+    vault_root = Path(config.vault.path).expanduser().resolve()
+    full_path = (vault_root / file).resolve()
+
+    # Ensure it's inside vault
+    if not str(full_path).startswith(str(vault_root)):
+        raise HTTPException(status_code=403, detail="Path traversal detected")
+
+    if not full_path.exists() or not full_path.is_file():
+        raise HTTPException(status_code=404, detail=f"File '{file}' not found")
+
+    try:
+        lines = full_path.read_text(encoding="utf-8").splitlines()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading file: {e}")
+
+    total = len(lines)
+    start = offset - 1
+    end = start + limit
+    page = lines[start:end]
+
+    return {
+        "file": file,
+        "total_lines": total,
+        "offset": offset,
+        "limit": limit,
+        "lines": [
+            {"num": i + start + 1, "content": line}
+            for i, line in enumerate(page)
+        ],
     }

@@ -18,6 +18,8 @@ from routers import (
     proxy as proxy_router,
     vault as vault_router,
 )
+from routers import desktop as desktop_router
+from routers import proxy_http as proxy_http_router
 
 # Structured logging init (before app creation)
 configure_logging(log_level="INFO", json_output=False)
@@ -26,10 +28,12 @@ configure_logging(log_level="INFO", json_output=False)
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+VERSION = "0.2.0"
+
 app = FastAPI(
     title="Hermes Bridge",
     description="Local automation bridge for Hermes Agent",
-    version="0.1.0",
+    version=VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -52,6 +56,8 @@ app.include_router(health_router.router)
 app.include_router(providers_router.router)
 app.include_router(proxy_router.router)
 app.include_router(vault_router.router)
+app.include_router(desktop_router.router)
+app.include_router(proxy_http_router.router)
 
 
 @app.get("/")
@@ -59,7 +65,7 @@ async def root():
     """Root endpoint — API info."""
     return {
         "name": "Hermes Bridge",
-        "version": "0.1.0",
+        "version": VERSION,
         "docs": "/docs",
         "health": "/api/health",
     }
@@ -69,20 +75,32 @@ async def root():
 async def api_root():
     """API root — list available endpoints."""
     return {
+        "version": VERSION,
         "endpoints": {
             "health": "/api/health",
             "health/nine-router": "/api/health/nine-router",
             "providers": "/api/providers",
             "providers/health": "/api/providers/health",
             "providers/import": "/api/providers/import",
-        }
+            "vault": "/api/vault",
+            "vault/search": "/api/vault/files/search?q=...",
+            "vault/structure": "/api/vault/files/structure",
+            "vault/read": "/api/vault/files/read?file=...",
+            "desktop/status": "/api/desktop/status",
+            "desktop/screenshot": "/api/desktop/screenshot",
+            "desktop/click": "POST /api/desktop/click",
+            "desktop/type": "POST /api/desktop/type",
+            "desktop/key": "POST /api/desktop/key",
+            "desktop/cursor": "/api/desktop/cursor",
+            "proxy/http": "/api/proxy/http?url=...",
+        },
     }
 
 
 def main():
     host = config.bridge.host
     port = config.bridge.port
-    print(f"🟢 Hermes Bridge running on http://{host}:{port}")
+    print(f"🟢 Hermes Bridge v{VERSION} running on http://{host}:{port}")
     print(f"📘 API docs at http://{host}:{port}/docs")
     uvicorn.run(app, host=host, port=port, log_level="info")
 
