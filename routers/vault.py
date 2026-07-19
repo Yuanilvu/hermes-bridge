@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from auth import verify_api_key
 from config_loader import config
 from store import get_store, ProviderStore
+from pydantic import BaseModel
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -151,4 +152,40 @@ async def vault_read(
             {"num": i + start + 1, "content": line}
             for i, line in enumerate(page)
         ],
+    }
+
+
+class VaultWriteRequest(BaseModel):
+    file: str  # path relative to vault root
+    content: str  # full file content (overwrites existing)
+    create_dirs: bool = True  # auto-create parent directories
+
+
+@router.post("/vault/files/write")
+async def vault_write(req: VaultWriteRequest):
+    """Write content to a vault file (creates or overwrites).
+
+    - file: path relative to vault root (e.g. 'notes/inbox/new-note.md')
+    - content: full file content (overwrites existing)
+    - create_dirs: auto-create parent directories (default: true)
+    """
+    vault_root = Path(config.vault.path).expanduser().resolve()
+    full_path = (vault_root / req.file).resolve()
+
+    # Path traversal check
+    if not str(full_path).startswith(str(vault_root)):
+        raise HTTPException(status_code=403, detail="Path traversal detected")
+
+    if req.create_dirs:
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        full_path.write_text(req.content, encoding="utf-8")
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Error writing file: {e}")
+
+    return {
+        "status": "ok",
+        "file": req.file,
+        "bytes": len(req.content.encode("utf-8")),
     }

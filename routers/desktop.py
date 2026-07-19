@@ -67,6 +67,21 @@ def _get_desktop_pid() -> int:
                 return w["pid"]
     except Exception:
         pass
+    # Fallback: try xdotool getactivewindow → getwindowpid
+    try:
+        wid = subprocess.run(
+            ["xdotool", "getactivewindow"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if wid.returncode == 0 and wid.stdout.strip().isdigit():
+            pid = subprocess.run(
+                ["xdotool", "getwindowpid", wid.stdout.strip()],
+                capture_output=True, text=True, timeout=3,
+            )
+            if pid.returncode == 0 and pid.stdout.strip().isdigit():
+                return int(pid.stdout.strip())
+    except Exception:
+        pass
     return 5540
 
 
@@ -163,7 +178,7 @@ async def screenshot():
     # Method 1 — mss
     try:
         import mss
-        with mss.mss() as sct:
+        with mss.MSS() as sct:
             monitor = sct.monitors[0]
             im = sct.grab(monitor)
             w, h = im.size
@@ -363,9 +378,6 @@ async def drag(req: DragRequest):
     return {"status": "ok", "from": {"x": req.from_x, "y": req.from_y}, "to": {"x": req.to_x, "y": req.to_y}}
 
 
-SESS = "hermes-bridge"  # cua-driver daemon session id
-
-
 class ParallelDragItem(BaseModel):
     from_x: Optional[float] = None
     from_y: Optional[float] = None
@@ -406,7 +418,7 @@ async def parallel_drag(req: ParallelDragRequest):
 
     drag_items = []
     for d in req.drags:
-        item = {"session": SESS, "window_id": wid, "pid": pid,
+        item = {"session": SESSION, "window_id": wid, "pid": pid,
                 "button": d.button, "duration_ms": d.duration_ms}
         if d.path:
             item["path"] = d.path
@@ -516,6 +528,80 @@ async def press_single_key(req: SingleKeyRequest):
     pid = req.pid or _get_desktop_pid()
     _cua_call("press_key", {"pid": pid, "key": req.key})
     return {"status": "ok", "key": req.key}
+
+
+# ─── key hold / release (gaming) ─────────────────────────────────────────
+
+
+class KeyHoldRequest(BaseModel):
+    key: str  # single key name (e.g. "w", "Shift_L")
+
+
+@router.post("/key-down")
+async def key_down(req: KeyHoldRequest):
+    """Press and hold a key (for gaming — WASD movement, sprint, etc).
+
+    Uses xdotool keydown. Call key-up to release.
+    Works on X11/XWayland windows (Steam Proton, Wine, native X11 games).
+    """
+    try:
+        subprocess.run(
+            ["xdotool", "keydown", req.key],
+            capture_output=True, text=True, timeout=5,
+        )
+        return {"status": "ok", "key": req.key, "action": "keydown"}
+    except FileNotFoundError:
+        raise HTTPException(503, "xdotool not installed (sudo apt-get install xdotool)")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "xdotool keydown timed out")
+    except Exception as e:
+        raise HTTPException(500, detail=f"key-down failed: {e}")
+
+
+@router.post("/key-up")
+async def key_up(req: KeyHoldRequest):
+    """Release a previously-held key (gaming).
+
+    Uses xdotool keyup. Releases the key specified.
+    """
+    try:
+        subprocess.run(
+            ["xdotool", "keyup", req.key],
+            capture_output=True, text=True, timeout=5,
+        )
+        return {"status": "ok", "key": req.key, "action": "keyup"}
+    except FileNotFoundError:
+        raise HTTPException(503, "xdotool not installed")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "xdotool keyup timed out")
+    except Exception as e:
+        raise HTTPException(500, detail=f"key-up failed: {e}")
+
+
+class MouseMoveRelativeRequest(BaseModel):
+    dx: int
+    dy: int
+
+
+@router.post("/mouse-move-relative")
+async def mouse_move_relative(req: MouseMoveRelativeRequest):
+    """Move cursor relative to current position (for camera look in games).
+
+    Uses xdotool mousemove_relative -- <dx> <dy>.
+    Positive dx = right, positive dy = down.
+    """
+    try:
+        subprocess.run(
+            ["xdotool", "mousemove_relative", "--", str(req.dx), str(req.dy)],
+            capture_output=True, text=True, timeout=5,
+        )
+        return {"status": "ok", "dx": req.dx, "dy": req.dy}
+    except FileNotFoundError:
+        raise HTTPException(503, "xdotool not installed")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "xdotool mousemove_relative timed out")
+    except Exception as e:
+        raise HTTPException(500, detail=f"mouse-move-relative failed: {e}")
 
 
 # ─── apps ──────────────────────────────────────────────────────────────────

@@ -36,9 +36,12 @@ async def providers_health():
     for p in providers:
         try:
             t0 = datetime.now()
+            # Ping the provider's own base URL, not via 9router
+            p_url = p.base_url.rstrip("/")
+            test_url = f"{p_url}/chat/completions" if "openai" in p.label.lower() else p_url
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(
-                    f"{config.nine_router.url}/v1/chat/completions",
+                    test_url,
                     headers={"Authorization": f"Bearer {p.api_key}"},
                     json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "ping"}]},
                 )

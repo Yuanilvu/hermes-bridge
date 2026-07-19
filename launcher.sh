@@ -25,7 +25,13 @@ if [ -x "$CUA_DRIVER" ]; then
     # Kill any stale daemon first, then start fresh
     "$CUA_DRIVER" stop 2>/dev/null || true
     "$CUA_DRIVER" serve --no-overlay --cursor-id hermes-bridge &
-    sleep 1  # let it bind its socket
+    # Wait for daemon socket to be ready (up to 10 seconds)
+    for i in $(seq 1 20); do
+        if "$CUA_DRIVER" status 2>/dev/null | grep -q "is running"; then
+            break
+        fi
+        sleep 0.5
+    done
 fi
 
 cd /home/yuan/hermes-bridge
