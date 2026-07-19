@@ -1,14 +1,15 @@
 [Unit]
 Description=Hermes Bridge — Local LLM proxy
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=yuan
 WorkingDirectory=/home/yuan/hermes-bridge
 Environment=PATH=/home/yuan/hermes-bridge/.venv/bin:/usr/local/bin:/usr/bin
-EnvironmentFile=/home/yuan/hermes-bridge/.env
-ExecStart=/home/yuan/hermes-bridge/.venv/bin/uvicorn server:app --host 127.0.0.1 --port 8199
+ExecStartPre=/bin/bash -c 'ls /home/yuan/hermes-bridge/launcher.sh'
+ExecStart=/bin/bash /home/yuan/hermes-bridge/launcher.sh
 Restart=always
 RestartSec=5
 
