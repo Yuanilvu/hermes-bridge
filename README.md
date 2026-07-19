@@ -945,6 +945,4 @@ export RATE_LIMIT_DESKTOP="60/minute"
 
 ---
 
-## 📄 Lisensi
 
-MIT © Yuanilvu
