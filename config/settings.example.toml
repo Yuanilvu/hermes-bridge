@@ -1,11 +1,16 @@
 # ─── Hermes Bridge — environment overrides ───
 # Settings here override .env defaults.
-# Create this file if you need non-default values.
+# Copy this to settings.toml (same dir) and edit as needed.
+# Priority: env var > settings.toml > code default.
 
 [bridge]
 host = "127.0.0.1"
 port = 8199
 api_key = "hermes-local-2026"
+
+[cors]
+# Allowed origins for CORS (comma-separated list). Default: ["*"]
+origins = ["http://localhost:8199", "http://127.0.0.1:8199"]
 
 [nine_router]
 url = "http://localhost:20128"
@@ -17,8 +22,9 @@ repo = "hermes-bridge"
 [vault]
 path = "/home/yuan/hermes-workspace"
 
-[limits]
-# Max request body size in bytes (default: 10MB)
-max_body_bytes = 10_485_760
-# Max vault file write size in bytes (default: 1MB)
-max_vault_write_bytes = 1_048_576
+[rate_limit]
+default = "30/minute"
+health = "60/minute"
+desktop = "15/minute"
+vault = "30/minute"
+proxy = "20/minute"

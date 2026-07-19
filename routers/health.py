@@ -2,8 +2,11 @@
 import time
 from datetime import datetime
 
+from hermes_bridge import VERSION
+
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from rate_limit import limiter
 
 from auth import verify_api_key
 from config_loader import config
@@ -14,12 +17,13 @@ _start_time = time.time()
 
 
 @router.get("")
-async def health_check():
+@limiter.limit(config.rate_limit.health)
+async def health_check(request: Request):
     """System health check."""
     return {
         "status": "ok",
         "timestamp": datetime.now().isoformat(),
-        "bridge_version": "0.2.1",
+        "bridge_version": VERSION,
         "uptime_seconds": round(time.time() - _start_time, 2),
     }
 

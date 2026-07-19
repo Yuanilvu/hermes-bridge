@@ -5,12 +5,14 @@ Provider store + actual vault filesystem search.
 import subprocess
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from auth import verify_api_key
 from config_loader import config
+from rate_limit import limiter
 from store import get_store, ProviderStore
 from pydantic import BaseModel, field_validator
+from hermes_bridge import VERSION
 
 
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -37,7 +39,7 @@ async def vault_info():
     return {
         "provider_count": len(providers),
         "providers": [{"id": p.id, "label": p.label, "model": p.model} for p in providers],
-        "bridge_version": "0.2.1",
+        "bridge_version": VERSION,
     }
 
 
@@ -171,7 +173,8 @@ class VaultWriteRequest(BaseModel):
 
 
 @router.post("/vault/files/write")
-async def vault_write(req: VaultWriteRequest):
+@limiter.limit(config.rate_limit.vault)
+async def vault_write(request: Request, req: VaultWriteRequest):
     """Write content to a vault file (creates or overwrites).
 
     - file: path relative to vault root (e.g. 'notes/inbox/new-note.md')

@@ -1,72 +1,126 @@
 # Hermes Bridge 🔗
 
-**Local automation bridge — memberi Hermes Agent "tangan & mata" di desktop kamu.**
+**Local automation bridge — tangan & mata Hermes Agent di desktop kamu.**
 
-Hermes punya akses terminal, tapi tidak bisa klik-klik UI, isi form, atau akses dashboard web yang butuh login. **Hermes Bridge menjembatani celah itu** — daemon FastAPI lokal yang bisa:
+Hermes punya akses terminal, tapi tidak bisa klik UI, isi form, atau screenshot.
+**Hermes Bridge menjembatani celah itu** — daemon FastAPI lokal dengan 4 router:
 
-- ✅ **Health check** — cek status 9router, API key, koneksi sistem
-- ✅ **Provider manager** — import/manage API keys dari file `providers.txt`
-- ✅ **9router integration** — cek status provider, rotasi key (coming soon)
-- ✅ **Browser automation** — kendalikan browser via Playwright (coming soon)
-- ✅ **Vault integration** — baca/tulis Obsidian notes via API (coming soon)
+| Router | Endpoints | Fungsi |
+|--------|-----------|--------|
+| **Desktop** 🖥️ | screenshot, click, type, key, scroll, status, cursor, mouse-relative, key-hold/release | Kendali desktop lewat API |
+| **Vault** 📁 | info, search, read, write, structure | Akses Obsidian vault via REST |
+| **Proxy** 🌐 | http, allowed-domains | HTTP proxy dengan whitelist domain |
+| **Health** ❤️ | health, nine-router | Monitoring & cek koneksi 9router |
 
 ## 🚀 Quick Start
 
 ```bash
-# 1. Install dependencies
 cd ~/hermes-bridge
+
+# Setup
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Set API key (untuk auth antara Hermes dan Bridge)
-export BRIDGE_API_KEY="hermes-local-2026"
+# Konfigurasi
+export BRIDGE_API_KEY="your-secret-key"
+export VAULT_PATH="$HOME/hermes-workspace"
 
-# 3. Jalanin server
+# Jalankan
 python server.py
-
-# 4. Cek kesehatan
-curl http://127.0.0.1:8199/api/health
-
-# 5. Lihat Swagger docs
-# Buka http://127.0.0.1:8199/docs di browser
 ```
 
 ## 📝 Konfigurasi
 
-Bridge membaca konfigurasi dari beberapa sumber (prioritas tinggi ke rendah):
-1. **Environment variables** — `BRIDGE_API_KEY`, `GITHUB_TOKEN`, `9ROUTER_URL`
-2. **`config/settings.toml`** — file konfigurasi utama
-3. **`config/providers.txt`** — daftar API key (format: `label,api_key`)
+Prioritas: **env var** > **config/settings.toml** > **code default**.
 
-### providers.txt format
+| Env var | Default | Fungsi |
+|---------|---------|--------|
+| `BRIDGE_API_KEY` | *(required)* | Auth header `X-Bridge-Key` |
+| `BRIDGE_HOST` | `127.0.0.1` | Bind address |
+| `BRIDGE_PORT` | `8199` | Port |
+| `VAULT_PATH` | `~/hermes-workspace` | Path ke Obsidian vault |
+| `ALLOWED_DOMAINS` | `api.github.com,raw.githubusercontent.com,...` | Domain whitelist untuk proxy |
+| `GITHUB_OWNER` | `Yuanilvu` | GitHub org/user |
+| `GITHUB_REPO` | `hermes-bridge` | Repo name |
 
-```txt
-# Satu baris per key
-google_ai_1,AIzaSyYourKeyHere
-openrouter_1,sk-or-v1-your-key
+Copy & edit `config/settings.example.toml` → `config/settings.toml` untuk config lebih granular (CORS origins, rate limit tiap endpoint, dll).
+
+### 🔐 Auth
+
+Semua endpoint (kecuali `/` root & `/api/health`) butuh header:
+```
+X-Bridge-Key: your-secret-key
 ```
 
 ## 🔌 API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | System health check |
-| `/api/health/nine-router` | GET | Check 9router connectivity |
-| `/api/providers` | GET | List all providers |
-| `/api/providers` | POST | Add new provider |
-| `/api/providers/health` | GET | Check all provider statuses |
+### Root
+| Endpoint | Auth | Deskripsi |
+|----------|------|-----------|
+| `GET /` | ❌ | Root info + version |
+| `GET /api` | ✅ | API index + daftar semua endpoint |
 
-Semua endpoint (kecuali `/docs`) butuh header `X-Bridge-Key`.
+### Health
+| Endpoint | Auth | Deskripsi |
+|----------|------|-----------|
+| `GET /api/health` | ❌ | System health (untuk Docker HEALTHCHECK) |
+| `GET /api/health/nine-router` | ✅ | Cek koneksi 9router |
 
-## 🗺️ Roadmap
+### Desktop
+| Endpoint | Method | Deskripsi | Rate limit |
+|----------|--------|-----------|------------|
+| `/api/desktop/status` | GET | Status cua-driver & display | 30/min |
+| `/api/desktop/screenshot` | GET | Screenshot PNG (base64) | **15/min** |
+| `/api/desktop/cursor` | GET | Posisi cursor | 30/min |
+| `/api/desktop/mouse` | POST | Gerakin mouse absolute | 30/min |
+| `/api/desktop/mouse-relative` | POST | Gerakin mouse relatif | 30/min |
+| `/api/desktop/click` | POST | Click (left/right/middle) | 30/min |
+| `/api/desktop/double-click` | POST | Double click | 30/min |
+| `/api/desktop/type` | POST | Ketik teks | 30/min |
+| `/api/desktop/key` | POST | Keyboard shortcut | 30/min |
+| `/api/desktop/key-hold` | POST | Tahan tombol | 30/min |
+| `/api/desktop/key-release` | POST | Lepas tombol | 30/min |
+| `/api/desktop/scroll` | POST | Scroll | 30/min |
 
-- [x] FastAPI server with health & provider endpoints
-- [x] API key auth
-- [x] Config loader (env + toml + file)
-- [ ] Playwright browser automation
-- [ ] 9router SQLite direct import
-- [ ] Systemd service auto-start
-- [ ] Key rotator & health checker
-- [ ] Obsidian vault integration
+### Vault
+| Endpoint | Method | Deskripsi | Rate limit |
+|----------|--------|-----------|------------|
+| `/api/vault` | GET | Info vault + provider count | 30/min |
+| `/api/vault/files/search?q=...` | GET | Cari konten file (min 1 char) | 30/min |
+| `/api/vault/files/read?file=...` | GET | Baca file dari vault | 30/min |
+| `/api/vault/files/write` | POST | Tulis file (max 1 MB) | **30/min** |
+| `/api/vault/files/structure` | GET | Struktur direktori vault | 30/min |
+
+### Proxy
+| Endpoint | Method | Deskripsi |
+|----------|--------|-----------|
+| `/api/proxy/allowed-domains` | GET | Daftar domain yang diizinkan |
+| `/api/proxy/http?url=...` | GET | Proxy GET request (whitelisted domain only) |
+
+## 🧪 Testing
+
+```bash
+cd ~/hermes-bridge
+source .venv/bin/activate
+pip install pytest  # one-time
+python -m pytest tests/ -v
+```
+
+**31 tests** — auth, config, health, vault, proxy, desktop.
+
+## ⚙️ Deployment
+
+```bash
+# Systemd service (auto-start)
+sudo cp hermes-bridge.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now hermes-bridge.service
+
+# Docker
+docker build -t hermes-bridge .
+docker run -d -p 8199:8199 -e BRIDGE_API_KEY=... hermes-bridge
+```
 
 ## 📄 Lisensi
 

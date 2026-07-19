@@ -28,6 +28,7 @@ Thumbs.db
 # Runtime
 *.pid
 *.lock
+.pytest_cache/
 
 # Config with secrets (general deny)
 config/providers.txt

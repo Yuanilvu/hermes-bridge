@@ -47,8 +47,11 @@ async def http_proxy(url: str = Query(..., description="URL to proxy to"), metho
     parsed = urlparse(url)
     hostname = parsed.hostname
 
+    if not hostname:
+        raise HTTPException(status_code=400, detail=f"Could not parse hostname from URL: '{url}'")
+
     # Check whitelist
-    if hostname and hostname not in ALLOWED_DOMAINS and not hostname.endswith(".github.com"):
+    if hostname not in ALLOWED_DOMAINS and not hostname.endswith(".github.com"):
         raise HTTPException(
             status_code=403,
             detail=f"Domain '{hostname}' not in allowed list. Allowed: {sorted(ALLOWED_DOMAINS)}",

@@ -14,10 +14,12 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from auth import verify_api_key
+from config_loader import config
+from rate_limit import limiter
 
 router = APIRouter(
     prefix="/api/desktop",
@@ -168,7 +170,8 @@ async def window_state(pid: Optional[int] = Query(None)):
 # ─── screenshot ────────────────────────────────────────────────────────────
 
 @router.get("/screenshot")
-async def screenshot():
+@limiter.limit(config.rate_limit.desktop)
+async def screenshot(request: Request):
     """Capture the full screen and return as base64 PNG.
     
     Uses mss (cross-platform screenshot) via X11/XWayland.

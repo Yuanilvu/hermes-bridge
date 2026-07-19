@@ -12,6 +12,7 @@ from rate_limit import limiter
 
 from auth import verify_api_key
 from config_loader import config
+from hermes_bridge import VERSION
 from logging_config import configure_logging
 from routers import (
     health as health_router,
@@ -29,7 +30,6 @@ configure_logging(log_level="INFO", json_output=False)
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-VERSION = "0.2.1"
 
 app = FastAPI(
     title="Hermes Bridge",
@@ -39,10 +39,10 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS — allow local access
+# CORS — allow from configured origins (default: local + any for dev)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.cors.origins if hasattr(config, 'cors') else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

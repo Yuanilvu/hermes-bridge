@@ -2,9 +2,12 @@
 # Hermes Bridge launcher — detects XAUTHORITY for Wayland+XWayland
 # Called by systemd; sources .env then detects the X11 auth cookie.
 
-# Load .env
+# Load .env (if exists — not required to launch)
 set -a
-source /home/yuan/hermes-bridge/.env
+ENV_FILE=/home/yuan/hermes-bridge/.env
+if [ -f "$ENV_FILE" ]; then
+    source "$ENV_FILE"
+fi
 set +a
 
 # Detect XAUTHORITY (the random suffix changes per login on Wayland/XWayland)
