@@ -6,7 +6,8 @@
 [bridge]
 host = "127.0.0.1"
 port = 8199
-api_key = "hermes-local-2026"
+# api_key — set via BRIDGE_API_KEY env var instead (generates random if unset)
+# api_key = "your-random-key-here"
 
 [cors]
 # Allowed origins for CORS (comma-separated list). Default: ["*"]

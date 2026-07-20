@@ -1,8 +1,7 @@
-"""
-Hermes Bridge config loader.
-Baca environment + config/settings.toml (optional), merge dengan prioritas env var.
-"""
+"""Hermes Bridge config loader."""
+import logging
 import os
+import secrets
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -16,6 +15,36 @@ from models import ProviderCreate
 BASE_DIR = Path(__file__).parent
 CONFIG_TOML_PATH = BASE_DIR / "config" / "settings.toml"
 PROVIDERS_TXT_PATH = BASE_DIR / "config" / "providers.txt"
+API_KEY_FILE = BASE_DIR / "data" / ".api_key"
+
+logger = logging.getLogger("hermes-bridge.config")
+
+
+def _ensure_api_key(toml_val: str | None) -> str:
+    """Return API key from env var, toml, auto-generated file, or fresh random."""
+    env_key = os.getenv("BRIDGE_API_KEY")
+    if env_key:
+        return env_key
+    if toml_val and toml_val != "hermes-local-2026":
+        return toml_val
+
+    # Check persisted key file
+    if API_KEY_FILE.exists():
+        key = API_KEY_FILE.read_text().strip()
+        if key:
+            return key
+
+    # Generate fresh random key
+    new_key = secrets.token_urlsafe(32)
+    API_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    API_KEY_FILE.write_text(new_key + "\n")
+    API_KEY_FILE.chmod(0o600)
+    logger.warning(
+        "No BRIDGE_API_KEY set. Generated random key — save it:\n"
+        f"    BRIDGE_API_KEY={new_key}\n"
+        f"Key also saved to {API_KEY_FILE} (owner-read-only)."
+    )
+    return new_key
 
 
 class _Bridge:
@@ -55,7 +84,7 @@ class _Hub:
         br = _Bridge()
         br.host = os.getenv("BRIDGE_HOST") or _toml_get(toml, "bridge", "host", "127.0.0.1")
         br.port = int(os.getenv("BRIDGE_PORT") or str(_toml_get(toml, "bridge", "port", 8199)))
-        br.api_key = os.getenv("BRIDGE_API_KEY") or _toml_get(toml, "bridge", "api_key", "hermes-local-2026")
+        br.api_key = _ensure_api_key(_toml_get(toml, "bridge", "api_key", None))
         self.bridge = br
 
         cors = _Cors()
