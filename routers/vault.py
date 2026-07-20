@@ -1,76 +1,53 @@
 """
-Vault router — Hermes Bridge v0.2.1
-Provider store + actual vault filesystem search.
+Vault filesystem router — Hermes Bridge v0.2.3
+Read, write, search files in the Hermes/Obsidian vault.
 """
 import subprocess
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, field_validator
 
 from auth import verify_api_key
 from config_loader import config
 from rate_limit import limiter
-from store import get_store, ProviderStore
-from pydantic import BaseModel, field_validator
-from hermes_bridge import VERSION
-
-
-DATA_DIR = Path(__file__).parent.parent / "data"
 
 router = APIRouter(
-    prefix="/api",
+    prefix="/api/vault",
     tags=["Vault"],
     dependencies=[Depends(verify_api_key)],
 )
 
 
-def _get_store() -> ProviderStore:
-    return get_store(DATA_DIR)
-
-
-# ── Existing: provider store endpoints ──────────────────────────────
-
-
-@router.get("/vault")
+@router.get("")
 async def vault_info():
-    """Return metadata about the Hermes bridge vault (provider store)."""
-    store = _get_store()
-    providers = store.get_all()
+    """Return metadata about the vault."""
+    vault_root = Path(config.vault.path).expanduser().resolve()
+    if not vault_root.exists():
+        raise HTTPException(status_code=404, detail="Vault path not found")
+
+    total_md = 0
+    structure = {}
+    for child in sorted(vault_root.iterdir()):
+        if child.is_dir() and not child.name.startswith("."):
+            md_count = len(list(child.glob("*.md")))
+            structure[child.name] = {"files": md_count}
+            total_md += md_count
+
     return {
-        "provider_count": len(providers),
-        "providers": [{"id": p.id, "label": p.label, "model": p.model} for p in providers],
-        "bridge_version": VERSION,
+        "vault_root": str(vault_root),
+        "total_markdown_files": total_md,
+        "structure": structure,
     }
 
 
-@router.get("/vault/providers/{provider_id}")
-async def vault_provider_detail(provider_id: str):
-    """Return detail for a specific provider."""
-    store = _get_store()
-    provider = store.get(provider_id)
-    if not provider:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
-    return {
-        "id": provider.id,
-        "label": provider.label,
-        "base_url": provider.base_url,
-        "model": provider.model,
-    }
-
-
-# ── New: vault filesystem search ────────────────────────────────────
-
-
-@router.get("/vault/files/search")
+@router.get("/files/search")
 async def vault_search(
     q: str = Query(..., description="Search query (regex or plain text)", min_length=1),
-    path: str = Query("notes", description="Subdirectory under vault to search (e.g. notes, notes/daily)"),
+    path: str = Query("notes", description="Subdirectory under vault to search"),
     max_results: int = Query(20, ge=1, le=100),
 ):
-    """Search files in the Obsidian vault by content.
-
-    Uses ripgrep (rg) for fast recursive search.
-    """
+    """Search files in the vault by content (uses ripgrep)."""
     vault_root = Path(config.vault.path).expanduser().resolve()
     search_dir = vault_root / path
 
@@ -88,7 +65,6 @@ async def vault_search(
         raise HTTPException(status_code=504, detail="Search timed out")
 
     files = [f for f in result.stdout.strip().split("\n") if f.strip()]
-    # Show relative paths
     files_rel = [str(Path(f).relative_to(vault_root)) for f in files[:max_results]]
 
     return {
@@ -99,7 +75,7 @@ async def vault_search(
     }
 
 
-@router.get("/vault/files/structure")
+@router.get("/files/structure")
 async def vault_structure():
     """List vault directory structure (top-level folders and file counts)."""
     vault_root = Path(config.vault.path).expanduser().resolve()
@@ -119,7 +95,7 @@ async def vault_structure():
     }
 
 
-@router.get("/vault/files/read")
+@router.get("/files/read")
 async def vault_read(
     file: str = Query(..., description="File path relative to vault root"),
     offset: int = Query(1, ge=1),
@@ -129,10 +105,8 @@ async def vault_read(
     vault_root = Path(config.vault.path).expanduser().resolve()
     full_path = (vault_root / file).resolve()
 
-    # Ensure it's inside vault
     if not str(full_path).startswith(str(vault_root)):
         raise HTTPException(status_code=403, detail="Path traversal detected")
-
     if not full_path.exists() or not full_path.is_file():
         raise HTTPException(status_code=404, detail=f"File '{file}' not found")
 
@@ -159,9 +133,9 @@ async def vault_read(
 
 
 class VaultWriteRequest(BaseModel):
-    file: str  # path relative to vault root
-    content: str  # full file content (overwrites existing)
-    create_dirs: bool = True  # auto-create parent directories
+    file: str
+    content: str
+    create_dirs: bool = True
 
     @field_validator("content")
     @classmethod
@@ -172,19 +146,13 @@ class VaultWriteRequest(BaseModel):
         return v
 
 
-@router.post("/vault/files/write")
+@router.post("/files/write")
 @limiter.limit(config.rate_limit.vault)
 async def vault_write(request: Request, req: VaultWriteRequest):
-    """Write content to a vault file (creates or overwrites).
-
-    - file: path relative to vault root (e.g. 'notes/inbox/new-note.md')
-    - content: full file content (overwrites existing)
-    - create_dirs: auto-create parent directories (default: true)
-    """
+    """Write content to a vault file (creates or overwrites)."""
     vault_root = Path(config.vault.path).expanduser().resolve()
     full_path = (vault_root / req.file).resolve()
 
-    # Path traversal check
     if not str(full_path).startswith(str(vault_root)):
         raise HTTPException(status_code=403, detail="Path traversal detected")
 

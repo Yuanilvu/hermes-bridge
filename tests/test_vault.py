@@ -11,8 +11,9 @@ class TestVault:
         resp = client.get("/api/vault", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
-        assert "provider_count" in data
-        assert "bridge_version" in data
+        assert "vault_root" in data
+        assert "total_markdown_files" in data
+        assert "structure" in data
 
     def test_vault_structure(self, client: TestClient, auth_headers):
         resp = client.get("/api/vault/files/structure", headers=auth_headers)
