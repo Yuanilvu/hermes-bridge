@@ -2,14 +2,15 @@
 
 **Local automation bridge — memberi Hermes Agent tangan & mata di desktop Linux.**
 
-Hermes Agent punya akses terminal, tapi tidak bisa klik UI, isi form, screenshot, atau akses Obsidian vault lewat REST. **Hermes Bridge menjembatani celah itu** — daemon FastAPI lokal yang menyediakan 4 kategori API:
+Hermes Agent punya akses terminal, tapi tidak bisa klik UI, isi form, screenshot, atau akses Obsidian vault lewat REST. **Hermes Bridge menjembatani celah itu** — daemon FastAPI lokal yang menyediakan **5 kategori API**:
 
 | Kategori | Fungsi |
 |----------|--------|
 | 🖥️ **Desktop** | Screenshot, mouse, keyboard, click, scroll, cursor — kendali penuh GUI |
 | 📁 **Vault** | Baca, tulis, cari file di Obsidian vault Hermes Workspace |
 | 🌐 **Proxy** | HTTP proxy aman ke whitelisted domain (GitHub API, dll) |
-| ❤️ **Health** | Monitoring service & koneksi 9router |
+| 🏪 **Providers** | CRUD penyedia LLM (OpenAI, Anthropic, dll) — API key terenkripsi |
+| ♥️ **Health** | Monitoring service & koneksi 9router |
 
 ---
 
@@ -30,7 +31,8 @@ Hermes Agent punya akses terminal, tapi tidak bisa klik UI, isi form, screenshot
   - [Health](#2-health-❤️)
   - [Desktop](#3-desktop-🖥️)
   - [Vault](#4-vault-📁)
-  - [Proxy](#5-proxy-🌐)
+  - [Providers](#5-providers-🏪)
+  - [Proxy](#6-proxy-🌐)
 - [Rate Limiting](#-rate-limiting)
 - [Body Size Limits](#-body-size-limits)
 - [Error Handling](#-error-handling)
@@ -491,7 +493,7 @@ Body:
 **Catatan:** Vault path diatur lewat env var `VAULT_PATH` atau `config/settings.toml`. Default: `~/hermes-workspace`. Vault harus berupa direktori yang bisa dibaca oleh user yang menjalankan server.
 
 #### `GET /api/vault`
-Info vault + jumlah file/provider.
+Info vault folder — jumlah file markdown per direktori.
 
 ```bash
 curl -H "X-Bridge-Key: rahasia123" http://127.0.0.1:8199/api/vault
@@ -500,11 +502,15 @@ curl -H "X-Bridge-Key: rahasia123" http://127.0.0.1:8199/api/vault
 Response (contoh):
 ```json
 {
-  "path": "/home/yuan/hermes-workspace",
-  "name": "hermes-workspace",
-  "file_count": 142,
-  "size_kb": 2840,
-  "provider_count": 3
+  "vault_root": "/home/yuan/hermes-workspace",
+  "total_markdown_files": 142,
+  "structure": {
+    "notes": {"files": 124, "path": "notes"},
+    "templates": {"files": 7, "path": "templates"},
+    "scripts": {"files": 4, "path": "scripts"},
+    "attachments": {"files": 0, "path": "attachments"}
+  },
+  "total_dirs": 4
 }
 ```
 
@@ -623,7 +629,56 @@ Response:
 
 ---
 
-### 5. Proxy 🌐
+### 5. Providers 🏪
+
+Manajemen penyedia LLM (OpenAI, Anthropic, Google, dll). API key disimpan **terenkripsi** (Fernet AES) di `data/providers.json`.
+
+#### `GET /api/providers`
+Daftar semua provider.
+
+```bash
+curl -H "X-Bridge-Key: rahasia123" http://127.0.0.1:8199/api/providers
+```
+
+Response:
+```json
+[
+  {
+    "id": "a1b2c3d4-...",
+    "label": "openai-gpt4",
+    "api_key": "sk-...",
+    "base_url": "https://api.openai.com/v1",
+    "model": "gpt-4o",
+    "created_at": "2026-07-20T..."
+  }
+]
+```
+
+#### `POST /api/providers`
+Tambah provider baru.
+
+```bash
+curl -X POST -H "X-Bridge-Key: rahasia123" \
+  -H "Content-Type: application/json" \
+  -d '{"label": "my-provider", "api_key": "sk-...", "base_url": "https://api.openai.com/v1", "model": "gpt-4o"}' \
+  http://127.0.0.1:8199/api/providers
+```
+
+#### `GET /api/providers/{id}`
+Detail satu provider.
+
+#### `PATCH /api/providers/{id}`
+Update label / model provider.
+
+#### `DELETE /api/providers/{id}`
+Hapus provider.
+
+#### `GET /api/providers/health`
+Cek semua provider — status reachability.
+
+---
+
+### 6. Proxy 🌐
 
 #### `GET /api/proxy/allowed-domains`
 Lihat daftar domain yang diizinkan untuk proxy.
