@@ -1,11 +1,12 @@
 """
-Simple JSON file-based provider store.
+Simple JSON file-based provider store with encryption at rest.
 """
 import json
 from pathlib import Path
 from typing import List, Optional
 
 from models import Provider, ProviderCreate
+from store_crypto import encrypt_api_key, decrypt_api_key
 
 
 class ProviderStore:
@@ -21,13 +22,24 @@ class ProviderStore:
         try:
             with open(self.file_path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
-                return [Provider(**item) for item in raw]
+            # Decrypt api_key fields
+            for item in raw:
+                if "api_key" in item:
+                    item["api_key"] = decrypt_api_key(item["api_key"], self.data_dir)
+            return [Provider(**item) for item in raw]
         except Exception:
             return []
 
     def _save(self):
+        # Encrypt api_key fields before writing to disk
+        raw = []
+        for p in self._providers:
+            pd = p.model_dump()
+            if pd.get("api_key"):
+                pd["api_key"] = encrypt_api_key(pd["api_key"], self.data_dir)
+            raw.append(pd)
         with open(self.file_path, "w", encoding="utf-8") as f:
-            json.dump([p.model_dump() for p in self._providers], f, indent=2)
+            json.dump(raw, f, indent=2)
 
     def get_all(self) -> List[Provider]:
         return self._providers.copy()
