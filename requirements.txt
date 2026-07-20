@@ -9,3 +9,6 @@ slowapi==0.1.10
 structlog==26.1.0
 tomli>=2.0.0
 uvicorn>=0.30.0
+
+# Platform input backends (optional — only needed on non-Linux)
+# pyautogui>=0.9.54

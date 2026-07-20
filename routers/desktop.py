@@ -16,6 +16,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
+from routers.platform_input import key_down as _pi_key_down, key_up as _pi_key_up, mouse_move_relative as _pi_mouse_move_relative
 
 from auth import verify_api_key
 from config_loader import config
@@ -545,41 +546,25 @@ class KeyHoldRequest(BaseModel):
 async def key_down(req: KeyHoldRequest):
     """Press and hold a key (for gaming — WASD movement, sprint, etc).
 
-    Uses xdotool keydown. Call key-up to release.
-    Works on X11/XWayland windows (Steam Proton, Wine, native X11 games).
+    Backend: Linux → xdotool, Windows/macOS → pyautogui.
+    Call key-up to release.
     """
-    try:
-        subprocess.run(
-            ["xdotool", "keydown", req.key],
-            capture_output=True, text=True, timeout=5,
-        )
-        return {"status": "ok", "key": req.key, "action": "keydown"}
-    except FileNotFoundError:
-        raise HTTPException(503, "xdotool not installed (sudo apt-get install xdotool)")
-    except subprocess.TimeoutExpired:
-        raise HTTPException(504, "xdotool keydown timed out")
-    except Exception as e:
-        raise HTTPException(500, detail=f"key-down failed: {e}")
+    body, status_code = _pi_key_down(req.key)
+    if status_code:
+        raise HTTPException(status_code=status_code, detail=body["error"])
+    return body
 
 
 @router.post("/key-up")
 async def key_up(req: KeyHoldRequest):
     """Release a previously-held key (gaming).
 
-    Uses xdotool keyup. Releases the key specified.
+    Backend: Linux → xdotool, Windows/macOS → pyautogui.
     """
-    try:
-        subprocess.run(
-            ["xdotool", "keyup", req.key],
-            capture_output=True, text=True, timeout=5,
-        )
-        return {"status": "ok", "key": req.key, "action": "keyup"}
-    except FileNotFoundError:
-        raise HTTPException(503, "xdotool not installed")
-    except subprocess.TimeoutExpired:
-        raise HTTPException(504, "xdotool keyup timed out")
-    except Exception as e:
-        raise HTTPException(500, detail=f"key-up failed: {e}")
+    body, status_code = _pi_key_up(req.key)
+    if status_code:
+        raise HTTPException(status_code=status_code, detail=body["error"])
+    return body
 
 
 class MouseMoveRelativeRequest(BaseModel):
@@ -591,21 +576,13 @@ class MouseMoveRelativeRequest(BaseModel):
 async def mouse_move_relative(req: MouseMoveRelativeRequest):
     """Move cursor relative to current position (for camera look in games).
 
-    Uses xdotool mousemove_relative -- <dx> <dy>.
+    Backend: Linux → xdotool, Windows/macOS → pyautogui.
     Positive dx = right, positive dy = down.
     """
-    try:
-        subprocess.run(
-            ["xdotool", "mousemove_relative", "--", str(req.dx), str(req.dy)],
-            capture_output=True, text=True, timeout=5,
-        )
-        return {"status": "ok", "dx": req.dx, "dy": req.dy}
-    except FileNotFoundError:
-        raise HTTPException(503, "xdotool not installed")
-    except subprocess.TimeoutExpired:
-        raise HTTPException(504, "xdotool mousemove_relative timed out")
-    except Exception as e:
-        raise HTTPException(500, detail=f"mouse-move-relative failed: {e}")
+    body, status_code = _pi_mouse_move_relative(req.dx, req.dy)
+    if status_code:
+        raise HTTPException(status_code=status_code, detail=body["error"])
+    return body
 
 
 # ─── apps ──────────────────────────────────────────────────────────────────
