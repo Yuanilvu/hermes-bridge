@@ -37,3 +37,7 @@ config/*.toml
 # Allow example configs
 !config/settings.example.toml
 !config/providers.example.txt
+
+# Data directory — runtime secrets (auto-generated store key, encrypted providers)
+data/
+!data/.gitkeep
